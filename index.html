@@ -2,6 +2,8 @@
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src https:; base-uri 'none'; form-action 'none'; object-src 'none'">
+<meta name="referrer" content="no-referrer">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Oiseau Gourmand</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -467,6 +469,58 @@
   }
   .score-card .big{ font-size:48px; font-weight:800; color:var(--accent); }
   .score-card .label{ font-size:13px; color:#bcdfc4; }
+  /* ---- REPORT (fenêtre de signalement) ---- */
+  .report-backdrop{
+    position:fixed; inset:0; z-index:5000;
+    background:rgba(5,20,11,0.82);
+    display:flex; align-items:center; justify-content:center;
+    padding:16px;
+  }
+  .report-backdrop.hidden{ display:none !important; }
+  .report-modal{
+    width:100%; max-width:440px; max-height:92vh; overflow-y:auto;
+    background:var(--panel); color:var(--cream);
+    border-radius:18px; padding:22px 20px;
+    box-shadow:0 10px 0 var(--shadow), 0 14px 40px rgba(0,0,0,0.55);
+    border:2px solid rgba(255,255,255,0.08);
+    display:flex; flex-direction:column; gap:12px;
+  }
+  .report-modal h2{
+    margin:0; text-align:center; font-family:'Baloo 2', sans-serif;
+    font-size:26px; font-weight:800; letter-spacing:0.5px; color:#ffd23f;
+    text-shadow:0 3px 0 #6b4300;
+  }
+  .report-modal textarea{
+    width:100%; min-height:120px; resize:vertical;
+    padding:12px 14px; border-radius:12px;
+    border:2px solid rgba(255,255,255,0.14);
+    background:rgba(0,0,0,0.28); color:var(--cream);
+    font:inherit; font-size:15px; line-height:1.4;
+  }
+  .report-modal textarea:focus{ outline:none; border-color:var(--accent); }
+  .report-modal textarea::placeholder{ color:#8fb99a; }
+  .report-count{ align-self:flex-end; font-size:12px; color:#9fcaa8; margin-top:-6px; }
+  .report-btn{
+    padding:14px 16px; border:none; border-radius:14px;
+    font-size:16px; font-weight:700; cursor:pointer;
+    background:rgba(255,255,255,0.12); color:var(--cream);
+    box-shadow:0 5px 0 var(--shadow);
+  }
+  .report-btn:active{ transform:translateY(4px); box-shadow:none; }
+  .report-btn.primary{ background:var(--accent); color:#1f3d22; }
+  .report-btn.secondary{ background:var(--cream); color:#1f3d22; box-shadow:0 5px 0 #b7b39f; }
+  .report-btn:disabled{ opacity:0.5; cursor:not-allowed; transform:none; }
+  .report-shot{ display:flex; align-items:center; gap:10px; font-size:13px; color:#bcdfc4; }
+  .report-shot.hidden{ display:none !important; }
+  .report-shot img{ width:56px; height:56px; object-fit:cover; border-radius:10px; border:2px solid rgba(255,255,255,0.25); }
+  .report-shot button{ margin-left:auto; border:none; background:rgba(255,255,255,0.12); color:var(--cream); border-radius:8px; padding:6px 10px; cursor:pointer; font-weight:700; }
+  .report-status{ min-height:18px; font-size:13px; text-align:center; color:#ffb3aa; }
+  .report-status.ok{ color:#9fe3ab; }
+  .report-success{ text-align:center; display:flex; flex-direction:column; gap:16px; align-items:stretch; padding:8px 0; }
+  .report-success p{ margin:0; font-size:18px; font-weight:700; }
+  .report-form.hidden, .report-success.hidden{ display:none !important; }
+  .report-form{ display:flex; flex-direction:column; gap:12px; }
+  .report-hp{ position:absolute !important; left:-9999px; width:1px; height:1px; opacity:0; pointer-events:none; }
 </style>
 </head>
 <body>
@@ -489,6 +543,7 @@
       <button class="primary" id="btnPlay">▶ Jouer</button>
       <button id="btnStore">🎁 Store</button>
       <button id="btnScore">🏆 Score</button>
+      <button id="btnReport" type="button">🚩 Report</button>
     </div>
   </div>
 
@@ -576,7 +631,34 @@
 
 </div>
 
+<!-- ===== FENÊTRE REPORT ===== -->
+<div class="report-backdrop hidden" id="reportBackdrop">
+  <div class="report-modal" id="reportModal" role="dialog" aria-modal="true" aria-labelledby="reportTitle">
+    <h2 id="reportTitle">REPORT A PROBLEM</h2>
+    <div class="report-form" id="reportForm">
+      <textarea id="reportText" maxlength="1000" placeholder="Décris le problème ici..." aria-label="Description du problème"></textarea>
+      <div class="report-count"><span id="reportCount">0</span>/1000</div>
+      <input class="report-hp" type="text" id="reportWebsite" name="website" tabindex="-1" autocomplete="off" aria-hidden="true">
+      <input type="file" id="reportFile" accept="image/png,image/jpeg,image/webp" class="hidden">
+      <button type="button" class="report-btn" id="reportAddShot">📷 AJOUTER UNE CAPTURE</button>
+      <div class="report-shot hidden" id="reportShot">
+        <img id="reportShotImg" alt="Aperçu de la capture">
+        <span id="reportShotName"></span>
+        <button type="button" id="reportShotRemove" aria-label="Retirer la capture">✕</button>
+      </div>
+      <div class="report-status" id="reportStatus" role="status" aria-live="polite"></div>
+      <button type="button" class="report-btn primary" id="reportSend">ENVOYER LE RAPPORT</button>
+      <button type="button" class="report-btn secondary" id="reportCancel">FERMER</button>
+    </div>
+    <div class="report-success hidden" id="reportSuccess">
+      <p>Merci ! Ton rapport a bien été envoyé.</p>
+      <button type="button" class="report-btn primary" id="reportClose">FERMER</button>
+    </div>
+  </div>
+</div>
+
 <script>
+(function(){
 /* ============ DONNEES : monnaie, rareté, skins ============ */
 
 const TIERS = [
@@ -628,6 +710,13 @@ const LIFE_CRATES = [
 // Chances de rareté quand on ouvre un coffret de skins (somme = 100)
 const RARITY_WEIGHTS = [45, 30, 15, 7, 3];
 
+// Données de référence figées : impossible de les modifier à chaud depuis la console
+(function deepFreeze(list){
+  list.forEach(function f(o){
+    if(o && typeof o === 'object' && !Object.isFrozen(o)){ Object.freeze(o); Object.values(o).forEach(f); }
+  });
+})([TIERS, SKIN_NAMES, SKINS, SKIN_CRATES, LIFE_CRATES, RARITY_WEIGHTS]);
+
 function drawRandomSkin(){
   const total = RARITY_WEIGHTS.reduce((a,b) => a+b, 0);
   let roll = Math.random() * total;
@@ -642,18 +731,74 @@ function drawRandomSkin(){
 
 /* ============ SAUVEGARDE (localStorage) ============ */
 
-let coins = parseInt(localStorage.getItem('oiseau-coins') || '0', 10);
-let ownedSkins = JSON.parse(localStorage.getItem('oiseau-owned') || '["noob-1"]');
-let equippedSkinId = localStorage.getItem('oiseau-equipped') || 'noob-1';
-let livesStock = parseInt(localStorage.getItem('oiseau-lives-stock') || '0', 10);
-let best = parseInt(localStorage.getItem('oiseau-best') || '0', 10);
+const LIMITS = { coins: 10000000, lives: 1000, best: 1000000 };
+const DEFAULT_SAVE = () => ({ coins:0, owned:['noob-1'], equipped:'noob-1', lives:0, best:0 });
+
+function readStore(key){ try{ return localStorage.getItem(key); }catch(e){ return null; } }
+function writeStore(key, value){ try{ localStorage.setItem(key, String(value)); }catch(e){} }
+
+// Empreinte simple (dissuasion contre les modifications à la main du localStorage)
+function fingerprint(str){
+  let h1 = 0xdeadbeef, h2 = 0x41c6ce57;
+  for(let i=0;i<str.length;i++){
+    const c = str.charCodeAt(i);
+    h1 = Math.imul(h1 ^ c, 2654435761);
+    h2 = Math.imul(h2 ^ c, 1597334677);
+  }
+  h1 = Math.imul(h1 ^ (h1>>>16), 2246822507) ^ Math.imul(h2 ^ (h2>>>13), 3266489909);
+  h2 = Math.imul(h2 ^ (h2>>>16), 2246822507) ^ Math.imul(h1 ^ (h1>>>13), 3266489909);
+  return (4294967296 * (2097151 & h2) + (h1>>>0)).toString(36);
+}
+function signSave(d){
+  return fingerprint([d.coins, d.owned.join(','), d.equipped, d.lives, d.best, 'crazy-bird/save/v1'].join('|'));
+}
+function cleanInt(v, max){
+  const n = parseInt(v, 10);
+  return (Number.isFinite(n) && n >= 0) ? Math.min(n, max) : 0;
+}
+
+function loadSave(){
+  const validIds = new Set(SKINS.map(sk => sk.id));
+  const d = DEFAULT_SAVE();
+  d.coins = cleanInt(readStore('oiseau-coins'), LIMITS.coins);
+  d.lives = cleanInt(readStore('oiseau-lives-stock'), LIMITS.lives);
+  d.best = cleanInt(readStore('oiseau-best'), LIMITS.best);
+  try{
+    const raw = JSON.parse(readStore('oiseau-owned') || '["noob-1"]');
+    if(Array.isArray(raw)){
+      d.owned = Array.from(new Set(raw.filter(id => typeof id === 'string' && validIds.has(id))));
+    }
+  }catch(e){ d.owned = ['noob-1']; }
+  if(!d.owned.includes('noob-1')) d.owned.unshift('noob-1');
+  const eq = readStore('oiseau-equipped');
+  d.equipped = (typeof eq === 'string' && d.owned.includes(eq)) ? eq : 'noob-1';
+
+  // Sauvegarde déjà signée mais modifiée à la main -> retour à une sauvegarde saine
+  const sig = readStore('oiseau-sig');
+  if(sig !== null && sig !== signSave(d)) return DEFAULT_SAVE();
+  return d;
+}
+
+const initialSave = loadSave();
+let coins = initialSave.coins;
+let ownedSkins = initialSave.owned;
+let equippedSkinId = initialSave.equipped;
+let livesStock = initialSave.lives;
+let best = initialSave.best;
 
 function saveWallet(){
-  localStorage.setItem('oiseau-coins', coins);
-  localStorage.setItem('oiseau-owned', JSON.stringify(ownedSkins));
-  localStorage.setItem('oiseau-equipped', equippedSkinId);
-  localStorage.setItem('oiseau-lives-stock', livesStock);
+  coins = Math.min(Math.max(0, Math.floor(Number(coins) || 0)), LIMITS.coins);
+  livesStock = Math.min(Math.max(0, Math.floor(Number(livesStock) || 0)), LIMITS.lives);
+  best = Math.min(Math.max(0, Math.floor(Number(best) || 0)), LIMITS.best);
+  const d = { coins, owned: ownedSkins, equipped: equippedSkinId, lives: livesStock, best };
+  writeStore('oiseau-coins', d.coins);
+  writeStore('oiseau-owned', JSON.stringify(d.owned));
+  writeStore('oiseau-equipped', d.equipped);
+  writeStore('oiseau-lives-stock', d.lives);
+  writeStore('oiseau-best', d.best);
+  writeStore('oiseau-sig', signSave(d));
 }
+saveWallet(); // signe aussi les anciennes sauvegardes existantes
 
 function equippedSkin(){
   return SKINS.find(s => s.id === equippedSkinId) || SKINS[0];
@@ -734,7 +879,10 @@ function refreshStore(){
 
     const head = document.createElement('div');
     head.className = 'tier-card-head';
-    head.innerHTML = `<span class="tier-name">${tier.name}</span>`;
+    const headName = document.createElement('span');
+    headName.className = 'tier-name';
+    headName.textContent = tier.name;
+    head.appendChild(headName);
     card.appendChild(head);
 
     const desc = document.createElement('div');
@@ -748,7 +896,13 @@ function refreshStore(){
       const owned = ownedSkins.includes(skin.id);
       const slot = document.createElement('div');
       slot.className = 'skin-slot' + (owned ? ' owned' : ' locked') + (skin.id===equippedSkinId ? ' equipped' : '');
-      slot.innerHTML = `<div class="circle">${owned ? '🐦' : '🔒'}</div><div>${skin.name}</div>`;
+      const circleEl = document.createElement('div');
+      circleEl.className = 'circle';
+      circleEl.textContent = owned ? '🐦' : '🔒';
+      const nameEl = document.createElement('div');
+      nameEl.textContent = skin.name;
+      slot.appendChild(circleEl);
+      slot.appendChild(nameEl);
       if(owned){
         slot.addEventListener('click', () => {
           equippedSkinId = skin.id;
@@ -933,7 +1087,7 @@ const Music = (() => {
   };
 })();
 
-let musicEnabled = localStorage.getItem('oiseau-music') !== 'off';
+let musicEnabled = readStore('oiseau-music') !== 'off';
 function syncMusic(){
   const inGame = document.getElementById('screen-game').classList.contains('active');
   if(musicEnabled && inGame && !document.hidden) Music.start(); else Music.stop();
@@ -1361,7 +1515,7 @@ function gameOver(){
   clearInterval(timer);
   if(score > best){
     best = score;
-    localStorage.setItem('oiseau-best', best);
+    saveWallet();
     document.getElementById('best').textContent = best;
   }
   document.getElementById('overlayTitle').textContent = 'Partie terminée !';
@@ -1455,6 +1609,7 @@ function activateH(){
 }
 
 window.addEventListener('keydown', e => {
+  if(!document.getElementById('reportBackdrop').classList.contains('hidden')) return; // fenêtre REPORT ouverte
   if(e.key.startsWith('Arrow')){
     e.preventDefault(); // empêche la page de défiler avec les flèches
   }
@@ -1483,7 +1638,7 @@ bindBtn('right',1,0);
 document.getElementById('hBtn').addEventListener('click', activateH);
 document.getElementById('musicBtn').addEventListener('click', () => {
   musicEnabled = !musicEnabled;
-  localStorage.setItem('oiseau-music', musicEnabled ? 'on' : 'off');
+  writeStore('oiseau-music', musicEnabled ? 'on' : 'off');
   syncMusic();
 });
 
@@ -1507,6 +1662,224 @@ canvas.addEventListener('touchend', e => {
   touchStart = null;
 });
 
+/* ============ REPORT : signalement d'un problème ============ */
+const GAME_VERSION = '1.1.0';
+// URL HTTPS de ton backend de rapports (voir backend/README.md).
+// Ne mets JAMAIS ici d'adresse e-mail, de clé API ou de mot de passe : tout cela reste côté serveur.
+const REPORT_API_URL = '';
+
+const ReportUI = (() => {
+  const CFG = {
+    minChars: 10, maxChars: 1000,
+    maxPickBytes: 10 * 1024 * 1024,  // taille max de la capture choisie
+    maxUploadBytes: 1500 * 1024,     // taille max envoyée (après recompression)
+    maxSide: 1280, maxPixels: 40e6,
+    cooldownMs: 30000, perHour: 3, timeoutMs: 15000
+  };
+  const $ = id => document.getElementById(id);
+  const backdrop = $('reportBackdrop'), form = $('reportForm'), success = $('reportSuccess');
+  const text = $('reportText'), count = $('reportCount'), hp = $('reportWebsite');
+  const fileInput = $('reportFile'), addBtn = $('reportAddShot');
+  const shotBox = $('reportShot'), shotImg = $('reportShotImg'), shotName = $('reportShotName'), shotRemove = $('reportShotRemove');
+  const statusEl = $('reportStatus'), sendBtn = $('reportSend'), cancelBtn = $('reportCancel'), closeBtn = $('reportClose');
+  let shot = null, sending = false, lastFocus = null;
+
+  function setStatus(msg, ok){ statusEl.textContent = msg || ''; statusEl.classList.toggle('ok', !!ok); }
+
+  function clearShot(){
+    if(shot){ URL.revokeObjectURL(shot.url); shot = null; }
+    shotBox.classList.add('hidden');
+    shotImg.removeAttribute('src');
+    shotName.textContent = '';
+    fileInput.value = '';
+  }
+
+  function open(){
+    lastFocus = document.activeElement;
+    text.value = ''; count.textContent = '0'; hp.value = '';
+    clearShot(); setStatus('');
+    form.classList.remove('hidden'); success.classList.add('hidden');
+    sendBtn.disabled = false; addBtn.disabled = false; cancelBtn.disabled = false;
+    backdrop.classList.remove('hidden');
+    text.focus();
+  }
+
+  function close(){
+    if(sending) return;
+    backdrop.classList.add('hidden');
+    clearShot(); text.value = ''; setStatus('');
+    if(lastFocus && lastFocus.focus) lastFocus.focus();
+  }
+
+  /* --- limite d'envois côté joueur (le serveur applique aussi sa propre limite) --- */
+  function recentSends(){
+    const now = Date.now();
+    try{
+      const raw = JSON.parse(readStore('oiseau-report-log') || '[]');
+      if(Array.isArray(raw)) return raw.filter(t => Number.isFinite(t) && t > now - 3600000 && t <= now + 60000).slice(-20);
+    }catch(e){}
+    return [];
+  }
+  function noteSend(){ const a = recentSends(); a.push(Date.now()); writeStore('oiseau-report-log', JSON.stringify(a)); }
+  function limitMessage(){
+    const a = recentSends();
+    if(a.length && Date.now() - a[a.length - 1] < CFG.cooldownMs) return "Patiente quelques secondes avant d'envoyer un autre rapport.";
+    if(a.length >= CFG.perHour) return 'Tu as déjà envoyé plusieurs rapports. Réessaie un peu plus tard.';
+    return '';
+  }
+
+  /* --- vérification réelle du type d'image (octets d'en-tête, pas l'extension) --- */
+  async function sniffType(file){
+    const b = new Uint8Array(await file.slice(0, 12).arrayBuffer());
+    const at = (arr, off) => arr.every((v, i) => b[(off || 0) + i] === v);
+    if(b.length >= 8 && at([0x89,0x50,0x4E,0x47,0x0D,0x0A,0x1A,0x0A])) return 'image/png';
+    if(b.length >= 3 && at([0xFF,0xD8,0xFF])) return 'image/jpeg';
+    if(b.length >= 12 && at([0x52,0x49,0x46,0x46]) && at([0x57,0x45,0x42,0x50], 8)) return 'image/webp';
+    return null;
+  }
+  function loadImage(blob){
+    return new Promise((resolve, reject) => {
+      const u = URL.createObjectURL(blob), im = new Image();
+      im.onload = () => { URL.revokeObjectURL(u); resolve(im); };
+      im.onerror = () => { URL.revokeObjectURL(u); reject(new Error('img')); };
+      im.src = u;
+    });
+  }
+  // Re-dessine l'image dans un canvas : supprime les métadonnées (EXIF/GPS) et tout contenu caché,
+  // réduit la taille et produit un JPEG propre.
+  async function recompress(file){
+    const img = await loadImage(file);
+    const w0 = img.naturalWidth, h0 = img.naturalHeight;
+    if(!w0 || !h0 || w0 * h0 > CFG.maxPixels) throw new Error('dim');
+    const ratio = Math.min(1, CFG.maxSide / Math.max(w0, h0));
+    const w = Math.max(1, Math.round(w0 * ratio)), h = Math.max(1, Math.round(h0 * ratio));
+    const c = document.createElement('canvas'); c.width = w; c.height = h;
+    const g = c.getContext('2d');
+    g.fillStyle = '#ffffff'; g.fillRect(0, 0, w, h);
+    g.drawImage(img, 0, 0, w, h);
+    for(const q of [0.82, 0.7, 0.58, 0.45]){
+      const blob = await new Promise(r => c.toBlob(r, 'image/jpeg', q));
+      if(blob && blob.size <= CFG.maxUploadBytes) return blob;
+    }
+    throw new Error('big');
+  }
+  function blobToBase64(blob){
+    return new Promise((resolve, reject) => {
+      const r = new FileReader();
+      r.onload = () => { const s = String(r.result); resolve(s.slice(s.indexOf(',') + 1)); };
+      r.onerror = () => reject(new Error('read'));
+      r.readAsDataURL(blob);
+    });
+  }
+
+  fileInput.addEventListener('change', async () => {
+    const f = fileInput.files && fileInput.files[0];
+    if(!f) return;
+    setStatus('');
+    if(f.size > CFG.maxPickBytes){ clearShot(); setStatus('Image trop lourde (10 Mo maximum).'); return; }
+    try{
+      if(!(await sniffType(f))) throw new Error('type');
+      const blob = await recompress(f);
+      clearShot();
+      const url = URL.createObjectURL(blob);
+      shot = { blob, url };
+      shotImg.src = url;
+      shotName.textContent = 'capture · ' + Math.round(blob.size / 1024) + ' Ko';
+      shotBox.classList.remove('hidden');
+    }catch(e){
+      clearShot();
+      setStatus('Image non valide. Choisis une capture PNG, JPG ou WebP.');
+    }
+  });
+
+  /* --- informations techniques NON sensibles --- */
+  function techInfo(){
+    const act = document.querySelector('.screen.active');
+    return {
+      ua: (navigator.userAgent || '').slice(0, 200),
+      lang: (navigator.language || '').slice(0, 35),
+      screen: screen.width + 'x' + screen.height,
+      viewport: window.innerWidth + 'x' + window.innerHeight,
+      dpr: Math.round((window.devicePixelRatio || 1) * 100) / 100,
+      touch: ('ontouchstart' in window) || (navigator.maxTouchPoints > 0),
+      screenName: act ? act.id : 'screen-menu',
+      difficulty: difficulty,
+      stage: Number(stage) || 1,
+      score: Number(score) || 0
+    };
+  }
+
+  async function send(){
+    if(sending) return;
+    const desc = text.value.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, '').trim();
+    if(desc.length < CFG.minChars){ setStatus('Décris un peu plus le problème (' + CFG.minChars + ' caractères minimum).'); text.focus(); return; }
+    if(desc.length > CFG.maxChars){ setStatus('Description trop longue (' + CFG.maxChars + ' caractères maximum).'); return; }
+    const lim = limitMessage();
+    if(lim){ setStatus(lim); return; }
+    if(!REPORT_API_URL){ setStatus("L'envoi de rapports n'est pas encore disponible."); return; }
+
+    sending = true;
+    sendBtn.disabled = true; addBtn.disabled = true; cancelBtn.disabled = true;
+    setStatus('Envoi en cours...', true);
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), CFG.timeoutMs);
+    try{
+      const payload = {
+        v: 1,
+        description: desc,
+        timestamp: new Date().toISOString(),
+        gameVersion: GAME_VERSION,
+        tech: techInfo(),
+        website: hp.value.slice(0, 100),
+        screenshot: shot ? { mime: 'image/jpeg', data: await blobToBase64(shot.blob) } : null
+      };
+      const res = await fetch(REPORT_API_URL, {
+        method: 'POST', mode: 'cors', credentials: 'omit', cache: 'no-store', referrerPolicy: 'no-referrer',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload), signal: ctrl.signal
+      });
+      if(res.status === 429){
+        setStatus('Trop de rapports envoyés. Réessaie plus tard.');
+      } else if(!res.ok){
+        setStatus("L'envoi a échoué. Réessaie plus tard.");
+      } else {
+        noteSend();
+        setStatus('');
+        form.classList.add('hidden');
+        success.classList.remove('hidden');
+        closeBtn.focus();
+      }
+    }catch(e){
+      setStatus("Impossible d'envoyer le rapport pour le moment. Vérifie ta connexion et réessaie.");
+    }finally{
+      clearTimeout(timer);
+      sending = false;
+      sendBtn.disabled = false; addBtn.disabled = false; cancelBtn.disabled = false;
+    }
+  }
+
+  $('btnReport').addEventListener('click', open);
+  addBtn.addEventListener('click', () => fileInput.click());
+  shotRemove.addEventListener('click', () => { clearShot(); setStatus(''); });
+  sendBtn.addEventListener('click', send);
+  cancelBtn.addEventListener('click', close);
+  closeBtn.addEventListener('click', close);
+  text.addEventListener('input', () => { count.textContent = String(text.value.length); });
+  backdrop.addEventListener('mousedown', e => { if(e.target === backdrop) close(); });
+  backdrop.addEventListener('keydown', e => {
+    if(e.key === 'Escape'){ e.stopPropagation(); close(); return; }
+    if(e.key === 'Tab'){
+      const items = Array.from(backdrop.querySelectorAll('textarea, button')).filter(x => !x.disabled && x.getClientRects().length > 0);
+      if(!items.length) return;
+      const first = items[0], last = items[items.length - 1];
+      if(e.shiftKey && document.activeElement === first){ e.preventDefault(); last.focus(); }
+      else if(!e.shiftKey && document.activeElement === last){ e.preventDefault(); first.focus(); }
+    }
+  });
+
+  return { open, close };
+})();
+
 resetGame();
 render();
 refreshMenu();
@@ -1524,6 +1897,7 @@ function animationLoop(){
   requestAnimationFrame(animationLoop);
 }
 requestAnimationFrame(animationLoop);
+})();
 </script>
 </body>
 </html>
