@@ -1899,5 +1899,78 @@ function animationLoop(){
 requestAnimationFrame(animationLoop);
 })();
 </script>
+<!-- Formulaire de rapport de bug -->
+<div id="bug-report-modal" style="max-width: 400px; margin: 20px auto; padding: 20px; border: 1px solid #ccc; border-radius: 8px; font-family: sans-serif; background-color: #fff; color: #333;">
+  <h3>Signaler un Bug 🐛</h3>
+  
+  <form id="bugReportForm">
+    <div style="margin-bottom: 12px;">
+      <label for="bugTitle" style="display:block; margin-bottom: 4px;">Titre du problème :</label>
+      <input type="text" id="bugTitle" required placeholder="Ex: Le jeu plante au niveau 2" style="width: 100%; padding: 8px; box-sizing: border-box;">
+    </div>
+
+    <div style="margin-bottom: 12px;">
+      <label for="userEmail" style="display:block; margin-bottom: 4px;">Votre Email (optionnel) :</label>
+      <input type="email" id="userEmail" placeholder="nom@example.com" style="width: 100%; padding: 8px; box-sizing: border-box;">
+    </div>
+
+    <div style="margin-bottom: 12px;">
+      <label for="bugDescription" style="display:block; margin-bottom: 4px;">Description du bug :</label>
+      <textarea id="bugDescription" required rows="4" placeholder="Décrivez ce qui s'est passé..." style="width: 100%; padding: 8px; box-sizing: border-box;"></textarea>
+    </div>
+
+    <button type="submit" id="submitBtn" style="padding: 10px 16px; background-color: #0070f3; color: white; border: none; border-radius: 4px; cursor: pointer;">
+      Envoyer le rapport
+    </button>
+  </form>
+
+  <p id="statusMessage" style="margin-top: 12px; font-size: 14px;"></p>
+</div>
+
+<script>
+  document.getElementById('bugReportForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+
+    const submitBtn = document.getElementById('submitBtn');
+    const statusMessage = document.getElementById('statusMessage');
+
+    const title = document.getElementById('bugTitle').value;
+    const userEmail = document.getElementById('userEmail').value;
+    const description = document.getElementById('bugDescription').value;
+
+    const WORKER_URL = 'https://crazy-bird-report.mazengame.workers.dev';
+
+    submitBtn.disabled = true;
+    submitBtn.innerText = 'Envoi en cours...';
+    statusMessage.style.color = '#333';
+    statusMessage.innerText = '';
+
+    try {
+      const response = await fetch(WORKER_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title, userEmail, description })
+      });
+
+      const result = await response.json();
+
+      if (response.ok && result.success) {
+        statusMessage.style.color = 'green';
+        statusMessage.innerText = '✅ Rapport envoyé avec succès ! Merci pour votre aide.';
+        document.getElementById('bugReportForm').reset();
+      } else {
+        statusMessage.style.color = 'red';
+        statusMessage.innerText = '❌ Une erreur est survenue : ' + (result.error || 'Impossible d\'envoyer.');
+      }
+    } catch (error) {
+      statusMessage.style.color = 'red';
+      statusMessage.innerText = '❌ Erreur de connexion réseau.';
+      console.error('Erreur:', error);
+    } finally {
+      submitBtn.disabled = false;
+      submitBtn.innerText = 'Envoyer le rapport';
+    }
+  });
+</script>
 </body>
 </html>
