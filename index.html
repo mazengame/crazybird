@@ -199,6 +199,7 @@
     font:800 13px 'Segoe UI', system-ui, sans-serif;
   }
   .h-btn:disabled{ opacity:0.45; filter:grayscale(0.6); cursor:not-allowed; transform:none; }
+  .reset-btn{ font-weight:bold; letter-spacing:1px; background:#d9534f; color:#fff; }
   .music-btn{ border:none; border-radius:8px; padding:2px 8px; font-size:15px; cursor:pointer; background:rgba(255,255,255,0.14); color:inherit; }
   .overlay{
     position:absolute;
@@ -480,7 +481,7 @@
   <div class="screen" id="screen-menu">
     <h1 class="game-title">🐦 Crazy Bird</h1>
     <p class="subtitle">Mange un maximum d'aliments, évite les arbres et les poubelles !</p>
-    <div class="coin-badge">M$ : <b id="menuCoins">0</b></div>
+    <div class="coin-badge"><span translate="no" class="notranslate">M$</span> : <b id="menuCoins">0</b></div>
     <div class="equipped-preview">
       <div class="dot" id="menuEquippedDot"></div>
       <span id="menuEquippedName">Poussin (Noob)</span>
@@ -498,10 +499,11 @@
       <div>Score : <b id="score">0</b></div>
       <div>Record : <b id="best">0</b></div>
       <div>Vies : <b id="lives">❤️❤️❤️</b></div>
-      <div>M$ : <b id="gameCoins">0</b></div>
+      <div><span translate="no" class="notranslate">M$</span> : <b id="gameCoins">0</b></div>
       <div>H : <b id="hCharges">3</b></div>
       <div>Stage : <b id="stageDisplay">1 (0/5)</b></div>
       <div><button id="musicBtn" class="music-btn" type="button" aria-label="Musique">🔊</button></div>
+      <div><button id="resetBtn" class="music-btn reset-btn" type="button">RESET</button></div>
     </div>
     <div class="canvas-holder">
       <canvas id="game" width="560" height="560"></canvas>
@@ -542,13 +544,19 @@
   <div class="screen" id="screen-store">
     <div class="store-header">
       <button class="back-btn" id="storeBack">← Menu</button>
-      <div class="coin-badge">M$ : <b id="storeCoins">0</b></div>
+      <div class="coin-badge"><span translate="no" class="notranslate">M$</span> : <b id="storeCoins">0</b></div>
     </div>
 
     <div class="tier-card" style="border-left-color:#ff6b5e;">
       <div class="tier-name" style="color:#ff9c8c;">❤️ Coffrets de vies</div>
       <div class="tier-desc">Ajoutent des vies bonus à ta prochaine partie.</div>
       <div class="skin-row" id="lifeCrateList" style="gap:10px;"></div>
+    </div>
+
+    <div class="tier-card" style="border-left-color:#5ec8ff;">
+      <div class="tier-name" style="color:#8fdcff;">⏳ Coffrets de H</div>
+      <div class="tier-desc">Ajoutent des charges du pouvoir H à ta prochaine partie.</div>
+      <div class="skin-row" id="hCrateList" style="gap:10px;"></div>
     </div>
 
     <div class="tier-card" style="border-left-color:var(--accent);">
@@ -569,7 +577,7 @@
     <div class="score-card">
       <div class="label">Meilleur score</div>
       <div class="big" id="scoreBest">0</div>
-      <div class="label" style="margin-top:10px;">M$ total en poche</div>
+      <div class="label" style="margin-top:10px;"><span translate="no" class="notranslate">M$</span> total en poche</div>
       <div class="big" id="scoreCoins" style="font-size:28px;">0</div>
     </div>
   </div>
@@ -625,6 +633,13 @@ const LIFE_CRATES = [
   { lives:15, cost:650 },
 ];
 
+const H_CRATES = [
+  { charges:3,  cost:600 },
+  { charges:6,  cost:1200 },
+  { charges:9,  cost:1600 },
+  { charges:15, cost:2300 },
+];
+
 // Chances de rareté quand on ouvre un coffret de skins (somme = 100)
 const RARITY_WEIGHTS = [45, 30, 15, 7, 3];
 
@@ -646,6 +661,7 @@ let coins = parseInt(localStorage.getItem('oiseau-coins') || '0', 10);
 let ownedSkins = JSON.parse(localStorage.getItem('oiseau-owned') || '["noob-1"]');
 let equippedSkinId = localStorage.getItem('oiseau-equipped') || 'noob-1';
 let livesStock = parseInt(localStorage.getItem('oiseau-lives-stock') || '0', 10);
+let hStock = parseInt(localStorage.getItem('oiseau-h-stock') || '0', 10);
 let best = parseInt(localStorage.getItem('oiseau-best') || '0', 10);
 
 function saveWallet(){
@@ -653,6 +669,7 @@ function saveWallet(){
   localStorage.setItem('oiseau-owned', JSON.stringify(ownedSkins));
   localStorage.setItem('oiseau-equipped', equippedSkinId);
   localStorage.setItem('oiseau-lives-stock', livesStock);
+  localStorage.setItem('oiseau-h-stock', hStock);
 }
 
 function equippedSkin(){
@@ -699,7 +716,7 @@ function refreshStore(){
       <div class="label">+${crate.lives} vies</div>
     `;
     const btn = document.createElement('button');
-    btn.textContent = `${crate.cost} M$`;
+    btn.innerHTML = `${crate.cost} <span translate="no" class="notranslate">M$</span>`;
     btn.disabled = coins < crate.cost;
     btn.addEventListener('click', () => openLifeCrate(crate));
     tile.appendChild(btn);
@@ -707,6 +724,25 @@ function refreshStore(){
   });
   document.querySelector('#lifeCrateList').parentElement.querySelector('.tier-desc').textContent =
     `Ajoutent des vies bonus à ta prochaine partie. Stock actuel : ${livesStock} vie(s) en attente.`;
+
+  const hContainer = document.getElementById('hCrateList');
+  hContainer.innerHTML = '';
+  H_CRATES.forEach(crate => {
+    const tile = document.createElement('div');
+    tile.className = 'crate-tile';
+    tile.innerHTML = `
+      <div class="icon">⏳📦</div>
+      <div class="label">+${crate.charges} H</div>
+    `;
+    const btn = document.createElement('button');
+    btn.innerHTML = `${crate.cost} <span translate="no" class="notranslate">M$</span>`;
+    btn.disabled = coins < crate.cost;
+    btn.addEventListener('click', () => openHCrate(crate));
+    tile.appendChild(btn);
+    hContainer.appendChild(tile);
+  });
+  document.querySelector('#hCrateList').parentElement.querySelector('.tier-desc').textContent =
+    `Ajoutent des charges du pouvoir H à ta prochaine partie. Stock actuel : ${hStock} charge(s) de H en attente.`;
 
   const skinContainer = document.getElementById('skinCrateList');
   skinContainer.innerHTML = '';
@@ -718,7 +754,7 @@ function refreshStore(){
       <div class="label">${crate.count} skin${crate.count>1?'s':''}</div>
     `;
     const btn = document.createElement('button');
-    btn.textContent = `${crate.cost} M$`;
+    btn.innerHTML = `${crate.cost} <span translate="no" class="notranslate">M$</span>`;
     btn.disabled = coins < crate.cost;
     btn.addEventListener('click', () => openSkinCrate(crate));
     tile.appendChild(btn);
@@ -739,7 +775,7 @@ function refreshStore(){
 
     const desc = document.createElement('div');
     desc.className = 'tier-desc';
-    desc.textContent = tierPowerText(tier);
+    desc.innerHTML = noTr(tierPowerText(tier));
     card.appendChild(desc);
 
     const row = document.createElement('div');
@@ -785,6 +821,14 @@ function openLifeCrate(crate){
   if(coins < crate.cost) return;
   coins -= crate.cost;
   livesStock += crate.lives;
+  saveWallet();
+  refreshStore();
+}
+
+function openHCrate(crate){
+  if(coins < crate.cost) return;
+  coins -= crate.cost;
+  hStock += crate.charges;
   saveWallet();
   refreshStore();
 }
@@ -1061,7 +1105,7 @@ function resetGame(){
   score = 0;
   lives = 3 + tier.extraStartLives + livesStock;
   hasShield = tier.shield;
-  hCharges = 3;
+  hCharges = 3 + hStock;
   cancelH();
   stage = 1;
   stageProgress = 0;
@@ -1069,8 +1113,9 @@ function resetGame(){
   victoryShown = false;
   speed = Math.max(80, 320 + tier.speedBonus + diff.speedAdj);
 
-  if(livesStock > 0){
+  if(livesStock > 0 || hStock > 0){
     livesStock = 0;
+    hStock = 0;
     saveWallet();
   }
 
@@ -1309,9 +1354,13 @@ function applySuperPower(){
   }
 }
 
+function noTr(text){
+  return String(text).replace(/M\$/g, '<span translate="no" class="notranslate">M$</span>');
+}
+
 function showToast(text){
   const el = document.getElementById('toast');
-  el.textContent = text;
+  el.innerHTML = noTr(text);
   el.classList.remove('hidden');
   el.classList.add('show');
   clearTimeout(showToast._t);
@@ -1365,7 +1414,7 @@ function gameOver(){
     document.getElementById('best').textContent = best;
   }
   document.getElementById('overlayTitle').textContent = 'Partie terminée !';
-  document.getElementById('overlayText').textContent = `Plus de vies ! L'oiseau a mangé ${score} bouchée(s) et gagné des M$. Choisis une difficulté pour rejouer !`;
+  document.getElementById('overlayText').innerHTML = noTr(`Plus de vies ! L'oiseau a mangé ${score} bouchée(s) et gagné des M$. Choisis une difficulté pour rejouer !`);
   document.getElementById('overlay').classList.remove('hidden');
 }
 
@@ -1386,13 +1435,16 @@ function startGame(){
   });
 }
 
+let countdownTimerId = null;
+
 function runCountdown(callback){
   const countdownEl = document.getElementById('countdown');
   const numEl = document.getElementById('countdownNum');
   let n = 3;
   numEl.textContent = n;
   countdownEl.classList.remove('hidden');
-  const countdownTimer = setInterval(() => {
+  clearInterval(countdownTimerId);
+  const countdownTimer = countdownTimerId = setInterval(() => {
     n--;
     if(n > 0){
       numEl.textContent = n;
@@ -1412,6 +1464,29 @@ document.querySelectorAll('#difficultySelect button').forEach(btn => {
     btn.classList.add('selected');
     startGame();
   });
+});
+
+const OVERLAY_DEFAULT_TITLE = document.getElementById('overlayTitle').textContent;
+const OVERLAY_DEFAULT_TEXT = document.getElementById('overlayText').textContent;
+
+// RESET : retour au menu en gardant tous les M$ gagnés pendant la partie
+document.getElementById('resetBtn').addEventListener('click', () => {
+  cancelH();
+  clearInterval(timer);
+  clearInterval(countdownTimerId);
+  running = false;
+  if(score > best){
+    best = score;
+    localStorage.setItem('oiseau-best', best);
+    document.getElementById('best').textContent = best;
+  }
+  saveWallet(); // les M$ gagnés sont conservés
+  document.getElementById('countdown').classList.add('hidden');
+  document.getElementById('victoryOverlay').classList.add('hidden');
+  document.getElementById('overlayTitle').textContent = OVERLAY_DEFAULT_TITLE;
+  document.getElementById('overlayText').textContent = OVERLAY_DEFAULT_TEXT;
+  document.getElementById('overlay').classList.remove('hidden'); // au prochain "Jouer", on rechoisit la difficulté
+  showScreen('screen-menu');
 });
 
 let hTimers = [], hSavedSpeed = null;
